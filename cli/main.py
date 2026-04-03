@@ -1661,7 +1661,7 @@ def analyze(
     ticker_to_check = ticker.upper() if market != "cn" else ticker
     if not re.match(selected_market["pattern"], ticker_to_check):
         console.print(f"[red]❌ 股票代码格式不正确: {ticker}[/red]")
-        console.print(f"[yellow]格式要求: {selected_market['format']}[/yellow]")
+        console.print(f"[yellow]格式要求: {selected_market['pattern']}[/yellow]")
         raise typer.Exit(1)
 
     # 3. 确定分析日期

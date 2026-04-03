@@ -118,6 +118,14 @@ def create_market_analyst_react(llm, toolkit):
             if is_china:
                 logger.info(f"📈 [市场分析师] 使用ReAct Agent分析中国股票")
 
+                # 动态计算历史数据开始日期（6个月前）
+                import datetime as dt
+                try:
+                    end_dt = dt.datetime.strptime(current_date, "%Y-%m-%d") if len(current_date) == 10 else dt.datetime.now()
+                except:
+                    end_dt = dt.datetime.now()
+                start_date = (end_dt - dt.timedelta(days=180)).strftime("%Y-%m-%d")
+
                 # 创建中国股票数据工具
                 from langchain_core.tools import BaseTool
 
@@ -132,7 +140,7 @@ def create_market_analyst_react(llm, toolkit):
                             from tradingagents.dataflows.optimized_china_data import get_china_stock_data_cached
                             return get_china_stock_data_cached(
                                 symbol=ticker,
-                                start_date='2025-05-28',
+                                start_date=start_date,
                                 end_date=current_date,
                                 force_refresh=False
                             )
@@ -142,7 +150,7 @@ def create_market_analyst_react(llm, toolkit):
                             try:
                                 return toolkit.get_china_stock_data.invoke({
                                     'stock_code': ticker,
-                                    'start_date': '2025-05-28',
+                                    'start_date': start_date,
                                     'end_date': current_date
                                 })
                             except Exception as e2:
@@ -172,6 +180,14 @@ def create_market_analyst_react(llm, toolkit):
             else:
                 logger.info(f"📈 [市场分析师] 使用ReAct Agent分析美股/港股")
 
+                # 动态计算历史数据开始日期（6个月前）
+                import datetime as dt
+                try:
+                    end_dt = dt.datetime.strptime(current_date, "%Y-%m-%d") if len(current_date) == 10 else dt.datetime.now()
+                except:
+                    end_dt = dt.datetime.now()
+                start_date = (end_dt - dt.timedelta(days=180)).strftime("%Y-%m-%d")
+
                 # 创建美股数据工具
                 from langchain_core.tools import BaseTool
 
@@ -186,7 +202,7 @@ def create_market_analyst_react(llm, toolkit):
                             from tradingagents.dataflows.optimized_us_data import get_us_stock_data_cached
                             return get_us_stock_data_cached(
                                 symbol=ticker,
-                                start_date='2025-05-28',
+                                start_date=start_date,
                                 end_date=current_date,
                                 force_refresh=False
                             )
@@ -196,7 +212,7 @@ def create_market_analyst_react(llm, toolkit):
                             try:
                                 return toolkit.get_YFin_data_online.invoke({
                                     'symbol': ticker,
-                                    'start_date': '2025-05-28',
+                                    'start_date': start_date,
                                     'end_date': current_date
                                 })
                             except Exception as e2:
@@ -211,7 +227,7 @@ def create_market_analyst_react(llm, toolkit):
                             logger.debug(f"📈 [DEBUG] FinnhubNewsTool调用，股票代码: {ticker}")
                             return toolkit.get_finnhub_news.invoke({
                                 'ticker': ticker,
-                                'start_date': '2025-05-28',
+                                'start_date': start_date,
                                 'end_date': current_date
                             })
                         except Exception as e:
@@ -244,9 +260,35 @@ def create_market_analyst_react(llm, toolkit):
             try:
                 # 创建ReAct Agent (适配新版本langgraph)
                 from langchain_core.prompts import PromptTemplate
-                
-                # 使用langgraph的ReAct代理
-                agent = create_react_agent(llm, tools)
+
+                # 自定义ReAct prompt（兼容langgraph版本）
+                react_prompt = PromptTemplate.from_template("""You are a helpful financial analyst assistant.
+
+To answer the user's question about stock analysis, you may use one or more tools to gather information.
+
+Available tools:
+{tools}
+
+Tool names: {tool_names}
+
+Use the following format:
+
+Question: the input question
+Thought: you should always think about what to do
+Action: the action to take, should be one of the tools above
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: your final answer to the original question
+
+Begin!
+
+Question: {input}
+{agent_scratchpad}""")
+
+                # 使用langgraph的ReAct代理（带自定义prompt）
+                agent = create_react_agent(llm, tools, prompt=react_prompt)
                 
                 agent_executor = AgentExecutor(
                     agent=agent,
@@ -280,7 +322,6 @@ def create_market_analyst_react(llm, toolkit):
     return market_analyst_react_node
 
 
->>>>>>> cc5f0ce (feat: CLI命令行升级 + MCP服务 + LangGraph迁移)
 def create_market_analyst(llm, toolkit):
 
     def market_analyst_node(state):

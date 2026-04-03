@@ -427,14 +427,47 @@ async def _get_stock_news(
     date: Optional[str] = None,
     days: int = 7
 ) -> list[TextContent]:
-    """Get stock news"""
-    # Simplified - just return placeholder for now
-    return _success_result({
-        "success": True,
-        "source": "News API",
-        "ticker": ticker.upper(),
-        "message": "Use analyze_stock_full with news analyst for full news analysis"
-    })
+    """Get stock news from Yahoo Finance or Finnhub"""
+    try:
+        import yfinance as yf
+
+        stock = yf.Ticker(ticker.upper())
+
+        # 获取新闻
+        news = stock.news
+
+        if not news or len(news) == 0:
+            return _success_result({
+                "success": True,
+                "source": "Yahoo Finance",
+                "ticker": ticker.upper(),
+                "count": 0,
+                "news": [],
+                "message": "No recent news available"
+            })
+
+        # 格式化新闻列表
+        formatted_news = []
+        for item in news[:days]:
+            formatted_news.append({
+                "title": item.get("title", ""),
+                "publisher": item.get("publisher", ""),
+                "link": item.get("link", ""),
+                "published": item.get("published", ""),
+            })
+
+        return _success_result({
+            "success": True,
+            "source": "Yahoo Finance",
+            "ticker": ticker.upper(),
+            "count": len(formatted_news),
+            "news": formatted_news
+        })
+
+    except ImportError:
+        return _error_result("yfinance not installed", "IMPORT_ERROR")
+    except Exception as e:
+        return _error_result(str(e), "NEWS_ERROR")
 
 
 async def _get_technical_indicators(
