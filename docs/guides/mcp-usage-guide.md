@@ -10,6 +10,7 @@ TradingAgents-CN 内置 MCP (Model Context Protocol) 服务，可以被 Claude C
 - **完整分析能力**: 支持 Layer 1/2/3 所有工具
 - **统一配置**: 复用 `.env` 中的所有配置
 - **多种部署方式**: 支持 Claude Code、OpenClaw 等客户端
+- **CLI 友好**: 同时支持命令行直接分析股票
 
 ## 快速开始
 
@@ -34,13 +35,34 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 
 支持的 LLM 提供商：
 
-| 提供商 | LLM Provider | 默认模型 |
-|--------|-------------|----------|
-| 通义千问 | dashscope | qwen-plus |
-| DeepSeek | deepseek | deepseek-chat |
-| OpenAI | openai | gpt-4o-mini |
+| 提供商 | LLM Provider | 默认模型 | API 端点 |
+|--------|-------------|----------|----------|
+| 通义千问 | dashscope | qwen-plus | dashscope.aliyuncs.com/compatible-mode/v1 |
+| DeepSeek | deepseek | deepseek-chat | api.deepseek.com |
+| OpenAI | openai | gpt-4o-mini | api.openai.com/v1 |
 
-### 3. 启动 MCP 服务
+### 3. 命令行直接分析
+
+无需交互，直接分析股票：
+
+```bash
+# 自动识别市场（美股/港股/A股）
+python -m cli.main 0700.HK           # 港股
+python -m cli.main AAPL              # 美股
+python -m cli.main 600036            # A股
+
+# 指定参数
+python -m cli.main 0700.HK -m hk -D 3 -p dashscope
+```
+
+参数说明：
+- `-m, --market`: 市场类型 (us/cn/hk/auto)
+- `-d, --date`: 分析日期 (YYYY-MM-DD)
+- `-D, --depth`: 研究深度 (1=浅, 3=中, 5=深)
+- `-p, --provider`: LLM 提供商 (dashscope/openai/deepseek/google/anthropic)
+- `-a, --analysts`: 分析师 (market/social/news/fundamentals)
+
+### 4. 启动 MCP 服务
 
 ```bash
 tradingagents-mcp
@@ -202,4 +224,53 @@ python -m tradingagents.mcp.server
 
 # 方式3: Claude Code 中
 /mcp  # 然后选择 tradingagents
+```
+
+## 测试示例
+
+### 腾讯控股分析
+
+```bash
+# 港股分析
+python -m cli.main 0700.HK -m hk --depth 1
+
+# 美股分析
+python -m cli.main NVDA -m us --depth 1
+
+# A股分析
+python -m cli.main 600036 -m cn --depth 1
+```
+
+## 已知问题
+
+### 1. API URL 配置
+
+确保 `.env` 或 CLI 参数中的 DashScope URL 使用 `/compatible-mode/v1`：
+
+```bash
+# ✅ 正确
+https://dashscope.aliyuncs.com/compatible-mode/v1
+
+# ❌ 错误（会导致 404）
+https://dashscope.aliyuncs.com/api/v1
+```
+
+### 2. API Key 验证
+
+系统会验证 API Key 是否为有效值（排除占位符如 `your_key_here`）。确保 `.env` 中的 Key 是真实有效的。
+
+## 架构说明
+
+```
+tradingagents/
+├── mcp/                    # MCP 服务模块
+│   ├── server.py          # stdio server
+│   ├── tools.py           # 工具实现 (Layer 1/2/3)
+│   └── config.py          # 配置管理
+├── agents/                # 分析师 agents
+│   └── analysts/         # 各类型分析师
+├── graph/                # LangGraph 工作流
+│   └── trading_graph.py  # 主分析图
+└── llm_adapters/        # LLM 适配器
+    └── dashscope_openai_adapter.py
 ```
