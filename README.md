@@ -141,11 +141,101 @@ docker-compose up -d
 - **灵活参数**: 支持自定义日期、深度、提供商
 - **友好输出**: 彩色终端输出，实时进度显示
 
-#### 🔌 **MCP 服务集成**
-- **标准协议**: 基于 Model Context Protocol
-- **AI Agent 友好**: 支持 Claude Code、OpenClaw 等
-- **多层工具**: Layer 1 原子工具 / Layer 2 阶段工具 / Layer 3 完整分析
-- **零配置**: 复用 `.env` 配置，开箱即用
+#### 🔌 **MCP 服务集成** - AI Agent 使用指南
+
+##### Claude Code 安装配置
+
+1. **安装 Claude Code**
+```bash
+# macOS
+brew install anthropic/claude-code/claude-code
+
+# 或下载安装包
+# https://claude.ai/download
+```
+
+2. **启动 Claude Code 并配置 MCP**
+```bash
+# 方式一：使用 /mcp 命令
+claude
+# 进入后输入 /mcp
+# 选择 "Add MCP Server"
+# 输入名称: tradingagents
+# 命令: python
+# 参数: -m tradingagents.mcp.server
+```
+
+3. **使用配置文件（推荐）**
+
+创建 `~/.claude/settings.json`：
+```json
+{
+  "mcpServers": {
+    "tradingagents": {
+      "command": "python",
+      "args": ["-m", "tradingagents.mcp.server"],
+      "env": {
+        "TRADINGAGENTS_LLM_PROVIDER": "dashscope",
+        "DASHSCOPE_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+4. **使用示例**
+```
+/tradingagents-analyze_stock_full ticker=0700.HK analysts=["market"] depth=shallow
+/get_tradingagents-company_info ticker=AAPL
+```
+
+---
+
+##### OpenClaw 安装配置
+
+1. **安装 OpenClaw**
+```bash
+# 参考 OpenClaw 官方文档
+# https://openclaw.dev/docs/getting-started
+```
+
+2. **添加 MCP Server 配置**
+
+在 OpenClaw 设置中添加：
+```json
+{
+  "mcpServers": {
+    "tradingagents": {
+      "command": "python",
+      "args": ["-m", "tradingagents.mcp.server"]
+    }
+  }
+}
+```
+
+3. **环境变量配置**
+
+确保 `.env` 文件包含：
+```bash
+TRADINGAGENTS_LLM_PROVIDER=dashscope
+DASHSCOPE_API_KEY=your-api-key
+```
+
+---
+
+##### 可用 MCP 工具
+
+| 工具 | 说明 | 示例 |
+|------|------|------|
+| `analyze_stock_full` | 完整股票分析 | `ticker=0700.HK` |
+| `run_analyst_team` | 分析师团队 | `ticker=AAPL analysts=["market","news"]` |
+| `get_company_info` | 公司信息 | `ticker=NVDA` |
+| `get_market_data` | 市场数据 | `ticker=AAPL start_date=2026-01-01` |
+| `get_technical_indicators` | 技术指标 | `ticker=TSLA indicator=RSI days=30` |
+| `get_fundamentals` | 基本面数据 | `ticker=0700.HK statement_type=income` |
+| `get_stock_news` | 股票新闻 | `ticker=AAPL days=7` |
+
+---
 
 #### � **重大Bug修复**
 - **技术指标计算修复**: 彻底解决市场分析师技术指标计算不准确问题
