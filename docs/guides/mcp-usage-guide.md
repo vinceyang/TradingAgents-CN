@@ -194,37 +194,116 @@ export TRADINGAGENTS_DEEP_MODEL=qwen-plus
 export TRADINGAGENTS_QUICK_MODEL=qwen-plus
 ```
 
+## OpenClaw 集成部署（飞书）
+
+### 1. 环境准备
+
+```bash
+# 安装 Miniconda
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p ~/miniconda3
+
+# 创建 Python 3.10 环境
+source ~/miniconda3/etc/profile.d/conda.sh
+conda create -n tradingagents python=3.10 -y
+conda activate tradingagents
+```
+
+### 2. 安装依赖
+
+```bash
+# 安装核心依赖
+pip install akshare mcp -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 安装 TradingAgents-CN
+cd ~/TradingAgents-CN
+pip install -e . -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+### 3. 配置 API Key
+
+创建 `~/TradingAgents-CN/.env`：
+
+```bash
+TRADINGAGENTS_LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=your-deepseek-api-key
+FINNHUB_API_KEY=your-finnhub-api-key
+TUSHARE_TOKEN=your-tushare-token
+DEFAULT_CHINA_DATA_SOURCE=akshare
+```
+
+### 4. 创建 OpenClaw Skill
+
+```bash
+mkdir -p ~/.agents/skills/tradingagents
+```
+
+创建 `~/.agents/skills/tradingagents/SKILL.md`：
+
+```markdown
+---
+name: tradingagents
+description: 多智能体 LLM 股票分析框架。
+---
+
+# TradingAgents 股票分析
+
+使用 TradingAgents-CN 进行股票分析：
+
+```bash
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate tradingagents
+cd ~/TradingAgents-CN
+python -m cli.main <股票代码> -m <市场> -p deepseek -D <深度>
+```
+
+示例：
+- 港股：`python -m cli.main 0700.HK -m hk -p deepseek -D 1`
+- 美股：`python -m cli.main AAPL -m us -p deepseek -D 1`
+- A股：`python -m cli.main 600036 -m cn -p deepseek -D 1`
+```
+
+### 5. 验证
+
+```bash
+# 测试 CLI
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate tradingagents
+cd ~/TradingAgents-CN
+python -m cli.main 0700.HK -m hk -p deepseek -D 1
+```
+
+### 飞书交互
+
+通过飞书发送消息给 OpenClaw Bot，Agent 会自动调用 skill 执行股票分析命令。
+
 ## 技术细节
 
 ### 配置优先级
 
-1. 环境变量 `TRADINGAGENTS_*`
-2. `.env` 文件
-3. 默认值
+1. 命令行参数 `-p`（最高）
+2. 环境变量 `TRADINGAGENTS_LLM_PROVIDER`
+3. `.env` 文件
+4. 默认值（dashscope）
 
-### MCP 模块位置
+### 支持的提供商
 
-```
-tradingagents/
-└── mcp/
-    ├── __init__.py
-    ├── config.py      # 配置管理
-    ├── server.py      # MCP 服务端
-    └── tools.py       # 工具实现
-```
+| 提供商 | 参数值 | 默认模型 |
+|--------|--------|----------|
+| DeepSeek | `-p deepseek` | deepseek-chat |
+| 通义千问 | `-p dashscope` | qwen-turbo |
+| OpenAI | `-p openai` | gpt-3.5-turbo |
+| Google | `-p google` | gemini-pro |
 
-### 命令行入口
+## 已知问题
 
-```bash
-# 方式1: 直接命令
-tradingagents-mcp
+### 1. API URL 配置
 
-# 方式2: Python 模块
-python -m tradingagents.mcp.server
+确保 `.env` 中使用正确的 API 端点。
 
-# 方式3: Claude Code 中
-/mcp  # 然后选择 tradingagents
-```
+### 2. API Key 验证
+
+系统会验证 API Key 是否为有效值。
 
 ## 测试示例
 
