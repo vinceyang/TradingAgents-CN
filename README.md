@@ -64,6 +64,52 @@
 
 > 🚀 **重磅发布**: v1.0.0-preview 版本现已正式！全新的 FastAPI + Vue 3 架构，带来企业级的性能和体验！
 
+### 🚀 快速开始
+
+#### 命令行直接分析（无需 Web 界面）
+
+```bash
+# 安装
+pip install -e .
+
+# 分析股票 - 自动识别市场
+python -m cli.main 0700.HK           # 港股
+python -m cli.main AAPL              # 美股
+python -m cli.main 600036            # A股
+
+# 指定参数
+python -m cli.main 0700.HK -m hk -D 3 -p dashscope
+```
+
+参数说明：
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `-m` | 市场类型 (us/cn/hk/auto) | `-m hk` |
+| `-d` | 分析日期 | `-d 2026-04-03` |
+| `-D` | 研究深度 (1/3/5) | `-D 3` |
+| `-p` | LLM 提供商 | `-p dashscope` |
+
+#### MCP 服务（AI Agent 集成）
+
+```bash
+# 启动 MCP 服务
+tradingagents-mcp
+
+# Claude Code 中使用
+/analyze_stock_full ticker=0700.HK
+/get_company_info ticker=AAPL
+/get_technical_indicators ticker=NVDA indicator=RSI
+```
+
+#### Web 界面部署
+
+```bash
+# Docker 部署（推荐）
+docker-compose up -d
+
+# 访问 http://localhost:8501
+```
+
 ### ✨ 核心特性
 
 #### 🏗️ **全新技术架构**
@@ -88,6 +134,18 @@
 - **模型能力管理**: 智能模型选择，根据任务自动匹配最佳模型
 - **多数据源同步**: 统一的数据源管理，支持 Tushare、AkShare、BaoStock
 - **报告导出功能**: 支持 Markdown/Word/PDF 多格式专业报告导出
+
+#### 💻 **命令行界面 (CLI)**
+- **直接分析**: 无需交互，直接分析股票
+- **自动市场识别**: 自动识别港股/美股/A股
+- **灵活参数**: 支持自定义日期、深度、提供商
+- **友好输出**: 彩色终端输出，实时进度显示
+
+#### 🔌 **MCP 服务集成**
+- **标准协议**: 基于 Model Context Protocol
+- **AI Agent 友好**: 支持 Claude Code、OpenClaw 等
+- **多层工具**: Layer 1 原子工具 / Layer 2 阶段工具 / Layer 3 完整分析
+- **零配置**: 复用 `.env` 配置，开箱即用
 
 #### � **重大Bug修复**
 - **技术指标计算修复**: 彻底解决市场分析师技术指标计算不准确问题
