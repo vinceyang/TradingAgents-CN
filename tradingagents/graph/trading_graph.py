@@ -17,6 +17,7 @@ from langgraph.prebuilt import ToolNode
 from tradingagents.agents import *
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.agents.utils.memory import FinancialSituationMemory
+from tradingagents.tools.unified_news_tool import create_unified_news_tool
 
 # 导入统一日志系统
 from tradingagents.utils.logging_init import get_logger
