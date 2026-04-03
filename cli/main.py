@@ -1026,11 +1026,15 @@ def check_api_keys(llm_provider: str) -> bool:
     return True
 
 def run_analysis():
-    import time
-    start_time = time.time()  # 记录开始时间
-    
-    # First get all user selections
+    """交互式分析模式 - 通过问答获取配置"""
     selections = get_user_selections()
+    run_analysis_with_selections(selections)
+
+
+def run_analysis_with_selections(selections: dict):
+    """自动分析模式 - 使用预配置的 selections"""
+    import time
+    start_time = time.time()
 
     # Check API keys before proceeding
     if not check_api_keys(selections["llm_provider"]):
@@ -1608,12 +1612,159 @@ def run_analysis():
     name="analyze",
     help="开始股票分析 | Start stock analysis"
 )
-def analyze():
+def analyze(
+    ticker: str = typer.Argument(..., help="股票代码 | Ticker symbol (如: AAPL, 600036, 0700.HK)"),
+    market: str = typer.Option("auto", "--market", "-m", help="股票市场 | Market (us=美股, cn=A股, hk=港股, auto=自动识别)"),
+    date: str = typer.Option("", "--date", "-d", help="分析日期 | Analysis date (YYYY-MM-DD，默认今天)"),
+    analysts: str = typer.Option("all", "--analysts", "-a", help="分析师 | Analysts (market,social,news,fundamentals，用逗号分隔或all)"),
+    depth: int = typer.Option(3, "--depth", "-D", help="研究深度 | Research depth (1=浅, 3=中, 5=深)"),
+    provider: str = typer.Option("dashscope", "--provider", "-p", help="LLM提供商 | LLM provider (dashscope, openai, deepseek, google, anthropic)"),
+    shallow_model: str = typer.Option("", "--shallow-model", "-s", help="快速思考模型 | Quick thinking model"),
+    deep_model: str = typer.Option("", "--deep-model", "-S", help="深度思考模型 | Deep thinking model"),
+):
     """
-    启动交互式股票分析工具
-    Launch interactive stock analysis tool
+    启动股票分析工具 (支持命令行参数自动执行)
+    Launch stock analysis with optional command-line arguments
+
+    示例 | Examples:
+        python -m cli.main AAPL -m us -d 2024-01-15
+        python -m cli.main 600036 -m cn -D 5
+        python -m cli.main 0700.HK -m hk -p deepseek
+        python -m cli.main NVDA --depth 5 --provider openai
     """
-    run_analysis()
+    import re
+
+    # 1. 自动识别市场类型
+    market_map = {
+        "us": {"name": "美股", "name_en": "US Stock", "default": "SPY", "pattern": r'^[A-Z]{1,5}$', "data_source": "yahoo_finance"},
+        "cn": {"name": "A股", "name_en": "China A-Share", "default": "600036", "pattern": r'^\d{6}$', "data_source": "china_stock"},
+        "hk": {"name": "港股", "name_en": "Hong Kong Stock", "default": "0700.HK", "pattern": r'^\d{4,5}\.HK$', "data_source": "yahoo_finance"},
+    }
+
+    # 如果市场设置为auto，自动识别
+    if market == "auto":
+        ticker_upper = ticker.upper()
+        if re.match(r'^\d{6}$', ticker):
+            market = "cn"
+        elif ".HK" in ticker_upper:
+            market = "hk"
+        else:
+            market = "us"
+
+    if market not in market_map:
+        console.print(f"[red]❌ 无效市场: {market} (支持: us, cn, hk, auto)[/red]")
+        raise typer.Exit(1)
+
+    selected_market = market_map[market]
+
+    # 2. 验证股票代码格式
+    ticker_to_check = ticker.upper() if market != "cn" else ticker
+    if not re.match(selected_market["pattern"], ticker_to_check):
+        console.print(f"[red]❌ 股票代码格式不正确: {ticker}[/red]")
+        console.print(f"[yellow]格式要求: {selected_market['format']}[/yellow]")
+        raise typer.Exit(1)
+
+    # 3. 确定分析日期
+    if not date:
+        date = datetime.datetime.now().strftime("%Y-%m-%d")
+    try:
+        analysis_date = datetime.datetime.strptime(date, "%Y-%m-%d")
+        if analysis_date.date() > datetime.datetime.now().date():
+            console.print("[red]❌ 分析日期不能是未来日期[/red]")
+            raise typer.Exit(1)
+    except ValueError:
+        console.print("[red]❌ 日期格式无效，请使用 YYYY-MM-DD[/red]")
+        raise typer.Exit(1)
+
+    # 4. 确定分析师选择
+    if analysts == "all":
+        selected_analysts = [
+            AnalystType.MARKET,
+            AnalystType.SOCIAL,
+            AnalystType.NEWS,
+            AnalystType.FUNDAMENTALS,
+        ]
+    else:
+        analyst_map = {
+            "market": AnalystType.MARKET,
+            "social": AnalystType.SOCIAL,
+            "news": AnalystType.NEWS,
+            "fundamentals": AnalystType.FUNDAMENTALS,
+        }
+        selected_analysts = []
+        for a in analysts.split(","):
+            a = a.strip().lower()
+            if a in analyst_map:
+                selected_analysts.append(analyst_map[a])
+        if not selected_analysts:
+            console.print("[red]❌ 无效的分析师选择[/red]")
+            raise typer.Exit(1)
+
+    # 5. 确定LLM提供商和模型
+    provider_map = {
+        "dashscope": ("阿里百炼 (DashScope)", "https://dashscope.aliyuncs.com/api/v1"),
+        "openai": ("OpenAI", "https://api.openai.com/v1"),
+        "deepseek": ("DeepSeek V3", "https://api.deepseek.com"),
+        "google": ("Google", "https://generativelanguage.googleapis.com/v1"),
+        "anthropic": ("Anthropic", "https://api.anthropic.com/"),
+    }
+
+    if provider not in provider_map:
+        console.print(f"[red]❌ 不支持的LLM提供商: {provider}[/red]")
+        raise typer.Exit(1)
+
+    provider_display, backend_url = provider_map[provider]
+
+    # 设置默认模型
+    if not shallow_model:
+        if provider == "dashscope":
+            shallow_model = "qwen-turbo"
+        elif provider == "deepseek":
+            shallow_model = "deepseek-chat"
+        else:
+            shallow_model = "gpt-4o-mini"
+
+    if not deep_model:
+        if provider == "dashscope":
+            deep_model = "qwen-plus"
+        elif provider == "deepseek":
+            deep_model = "deepseek-chat"
+        else:
+            deep_model = "gpt-4o"
+
+    # 6. 构建selections字典（模拟交互式选择）
+    selections = {
+        "ticker": ticker.upper() if market != "cn" else ticker,
+        "market": selected_market,
+        "analysis_date": date,
+        "analysts": selected_analysts,
+        "research_depth": depth,
+        "llm_provider": provider_display,
+        "backend_url": backend_url,
+        "shallow_thinker": shallow_model,
+        "deep_thinker": deep_model,
+        "auto_mode": True,  # 标记为自动模式
+    }
+
+    # 显示配置摘要
+    console.print(f"\n[bold cyan]📊 分析配置 | Analysis Configuration[/bold cyan]")
+    console.print(f"  股票代码: {selections['ticker']}")
+    console.print(f"  市场: {selected_market['name']} ({selected_market['name_en']})")
+    console.print(f"  日期: {date}")
+    console.print(f"  分析师: {', '.join(a.value for a in selected_analysts)}")
+    console.print(f"  研究深度: {depth}")
+    console.print(f"  LLM提供商: {provider_display}")
+    console.print(f"  快速模型: {shallow_model}")
+    console.print(f"  深度模型: {deep_model}")
+    console.print("")
+
+    # 检查API密钥
+    if not check_api_keys(provider):
+        ui.show_error("分析终止 | Analysis terminated")
+        raise typer.Exit(1)
+
+    # 调用分析流程
+    run_analysis_with_selections(selections)
 
 
 @app.command(
@@ -2020,34 +2171,49 @@ def help_chinese():
 
 
 def main():
-    """主函数 - 默认进入分析模式"""
+    """主函数 - 支持直接输入股票代码"""
 
-    # 如果没有参数，直接进入分析模式
+    # 如果没有参数，直接进入交互式分析模式
     if len(sys.argv) == 1:
         run_analysis()
-    else:
-        # 有参数时使用typer处理命令
-        try:
-            app()
-        except SystemExit as e:
-            # 只在退出码为2（typer的未知命令错误）时提供智能建议
-            if e.code == 2 and len(sys.argv) > 1:
-                unknown_command = sys.argv[1]
-                available_commands = ['analyze', 'config', 'version', 'data-config', 'examples', 'test', 'help']
-                
-                # 使用difflib找到最相似的命令
-                suggestions = get_close_matches(unknown_command, available_commands, n=3, cutoff=0.6)
-                
-                if suggestions:
-                    logger.error(f"\n[red]❌ 未知命令: '{unknown_command}'[/red]")
-                    logger.info(f"[yellow]💡 您是否想要使用以下命令之一？[/yellow]")
-                    for suggestion in suggestions:
-                        logger.info(f"   • [cyan]python -m cli.main {suggestion}[/cyan]")
-                    logger.info(f"\n[dim]使用 [cyan]python -m cli.main help[/cyan] 查看所有可用命令[/dim]")
-                else:
-                    logger.error(f"\n[red]❌ 未知命令: '{unknown_command}'[/red]")
-                    logger.info(f"[yellow]使用 [cyan]python -m cli.main help[/cyan] 查看所有可用命令[/yellow]")
-            raise e
+        return
+
+    # 检查第一个参数是否是股票代码（不是以-开头，且不匹配已知命令）
+    first_arg = sys.argv[1]
+    known_commands = ['analyze', 'config', 'version', 'data-config', 'examples', 'test', 'help', 'analyse']
+
+    # 如果第一个参数看起来像股票代码，直接调用 analyze
+    if not first_arg.startswith('-') and first_arg.lower() not in known_commands:
+        # 可能是股票代码，将参数传递给 analyze
+        import re
+        ticker_pattern = r'^[A-Za-z0-9\.]{1,10}$'
+        if re.match(ticker_pattern, first_arg):
+            # 将股票代码作为 analyze 的位置参数，替换 sys.argv
+            sys.argv = ['cli', 'analyze', first_arg] + sys.argv[2:]
+        # 如果不匹配股票代码模式，保持原样
+
+    # 有参数时使用typer处理命令
+    try:
+        app()
+    except SystemExit as e:
+        # 只在退出码为2（typer的未知命令错误）时提供智能建议
+        if e.code == 2 and len(sys.argv) > 1:
+            unknown_command = sys.argv[1]
+            available_commands = ['analyze', 'config', 'version', 'data-config', 'examples', 'test', 'help']
+
+            # 使用difflib找到最相似的命令
+            suggestions = get_close_matches(unknown_command, available_commands, n=3, cutoff=0.6)
+
+            if suggestions:
+                logger.error(f"\n[red]❌ 未知命令: '{unknown_command}'[/red]")
+                logger.info(f"[yellow]💡 您是否想要使用以下命令之一？[/yellow]")
+                for suggestion in suggestions:
+                    logger.info(f"   • [cyan]python -m cli.main {suggestion}[/cyan]")
+                logger.info(f"\n[dim]使用 [cyan]python -m cli.main help[/cyan] 查看所有可用命令[/dim]")
+            else:
+                logger.error(f"\n[red]❌ 未知命令: '{unknown_command}'[/red]")
+                logger.info(f"[yellow]使用 [cyan]python -m cli.main help[/cyan] 查看所有可用命令[/yellow]")
+        raise e
 
 if __name__ == "__main__":
     main()
