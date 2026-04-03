@@ -1702,7 +1702,7 @@ def analyze(
 
     # 5. 确定LLM提供商和模型
     provider_map = {
-        "dashscope": ("阿里百炼 (DashScope)", "https://dashscope.aliyuncs.com/api/v1"),
+        "dashscope": ("阿里百炼 (DashScope)", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
         "openai": ("OpenAI", "https://api.openai.com/v1"),
         "deepseek": ("DeepSeek V3", "https://api.deepseek.com"),
         "google": ("Google", "https://generativelanguage.googleapis.com/v1"),
